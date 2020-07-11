@@ -6,8 +6,10 @@
   :dependencies [[org.clojure/clojure "1.10.0"]
                  [com.slack.api/slack-api-client "1.0.7"]
                  ;; Necessary for OpenJDK build
-                 [javax.websocket/javax.websocket-api "1.1"]]
-  :source-paths ["src/clj" "src/java"]
+                 [javax.websocket/javax.websocket-api "1.1"]
+                 [org.glassfish.tyrus/tyrus-client "1.17"]
+                 [org.glassfish.tyrus/tyrus-container-grizzly-client "1.17"]]
+  :source-paths ["src"]
   :aot ["limp.client.rtm.handler.user-typing"]
   :java-source-paths ["src/java"]
   :repl-options {:init-ns limp.core}

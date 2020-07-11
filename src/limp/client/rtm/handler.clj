@@ -1,13 +1,14 @@
-(ns limp.client.rtm.message-handler
+(ns limp.client.rtm.handler
   (:require [clojure.spec.alpha :as s]
+            [clojure.string :as str]
             [limp.client.rtm.events :as events])
   (:import com.slack.api.rtm.message.Message
-           com.slack.api.rtm.RTMClient
-           com.slack.api.rtm.RTMEventsDispatcherFactory
-           com.slack.api.rtm.RTMEventsDispatcher
-           com.slack.api.rtm.RTMEventsDispatcherImpl
-           com.slack.api.rtm.RTMEventHandler
-           handlerimpls.UserTypingEventHandler))
+           (com.slack.api.rtm RTMClient
+                              RTMEventsDispatcherFactory
+                              RTMEventsDispatcher
+                              RTMEventsDispatcherImpl
+                              RTMEventHandler)
+           (limp.client.rtm.events UserTypingEvent)))
 
 (s/fdef dispatcher
   :ret (partial instance? RTMEventsDispatcher))
@@ -42,11 +43,20 @@
    (.deregister dispatcher handler)
    dispatcher))
 
-(defmacro gen-handler
+(defn handler
   [event-type responds? responder]
-  `(fn [~'client]
-     (~'proxy [~(symbol (str "handlerimpls." event-type "Handler"))] []
-      (~'handle [~'event]
-       (let [~'event ~'(events/->record event)]
-         (when (~responds? ~'event)
-           (~responder ~'event)))))))
+  (let [unqualified-name (as-> event-type %
+                           (.getName %)
+                           (str/split % #"\.")
+                           (last %))
+        sdk-class-name (str "com.slack.api.model.event."
+                            unqualified-name)]
+    (proxy [RTMEventHandler] []
+      (handle [event]
+        (let [event (events/->record event)]
+          (when (responds? event)
+            (responder event))))
+      (getEventClass [] (Class/forName sdk-class-name))
+      (getEventType []
+        (print "HERE")
+        sdk-class-name))))
