@@ -17,10 +17,10 @@ A bot that will respond whenever anyone is typing (probably don't do this)
 (require '[limp.client.rtm :refer :all])
 
 (start! (fn [{type :type}]
-                     (= :user-typing type))
+            (= :user-typing type))
 
-                   (fn [{channel :channel}]
-                     (Response. channel "someone is typing")))
+        (fn [{channel :channel}]
+            (Response. channel "someone is typing")))
 ```
 
 ## License
