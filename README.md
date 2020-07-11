@@ -1,14 +1,31 @@
 # limp
 
-A Clojure library designed to ... well, that part is up to you.
+A tiny library (if it can be called that) for making slackbots in Clojure
 
 ## Usage
 
-FIXME
+A bot is created by calling the `start!` function with 2-tuples of predicates and handlers.
+A predicate will return true if the following handler should respond to it. The handler should return 
+a `Response` record.
+
+Valid event types are the clj-ified versions of the ones listed [here](https://api.slack.com/rtm)
+
+The `"SLACK_TOKEN"` environment variable should be set as your legacy bot token
+
+A bot that will respond whenever anyone is typing (probably don't do this)
+```clojure
+(require '[limp.client.rtm :refer :all])
+
+(start! (fn [{type :type}]
+                     (= :user-typing type))
+
+                   (fn [{channel :channel}]
+                     (Response. channel "someone is typing")))
+```
 
 ## License
 
-Copyright © 2020 FIXME
+Copyright © 2020 Whoever
 
 This program and the accompanying materials are made available under the
 terms of the Eclipse Public License 2.0 which is available at
