@@ -12,7 +12,7 @@ Valid event types are the clj-ified versions of the ones listed [here](https://a
 
 The `"SLACK_TOKEN"` environment variable should be set as your legacy bot token
 
-A bot that will respond whenever anyone is typing (probably don't do this)
+Here's an example of a bot that will respond whenever anyone is typing (probably don't do this)
 ```clojure
 (require '[limp.client.rtm :refer :all])
 
