@@ -4,7 +4,7 @@ A tiny library (if it can be called that) for making slackbots in Clojure
 
 ## Usage
 
-A bot is created by calling the `start!` function with 2-tuples of predicates and handlers.
+A bot is created by calling the `start!` function where every 2 arguments is a predicate and a handler, resectively.
 A predicate will return true if the following handler should respond to it. The handler should return 
 a `Response` record.
 
@@ -12,7 +12,7 @@ Valid event types are the clj-ified versions of the ones listed [here](https://a
 
 The `"SLACK_TOKEN"` environment variable should be set as your legacy bot token
 
-A bot that will respond whenever anyone is typing (probably don't do this)
+Here's an example of a bot that will respond whenever anyone is typing (probably don't do this)
 ```clojure
 (require '[limp.client.rtm :refer :all])
 
