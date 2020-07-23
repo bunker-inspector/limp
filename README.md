@@ -3,6 +3,7 @@
 A tiny library (if it can be called that) for making slackbots in Clojure
 
 ## Usage
+This currently only supports the legacy RTM API
 
 A bot is created by calling the `start!` function where every 2 arguments is a predicate and a handler, resectively.
 A predicate will return true if the following handler should respond to it. The handler should return 
