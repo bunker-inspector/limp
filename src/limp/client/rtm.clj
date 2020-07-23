@@ -1,6 +1,7 @@
 (ns limp.client.rtm
   (:require [aleph.http :as http]
             [byte-streams :as bs]
+            [clojure.core.async :as a]
             [clojure.data.json :as json]
             [clojure.spec.alpha :as s]
             [clojure.string :as str]
@@ -15,34 +16,44 @@
 
 (defrecord Response [channel text])
 
-(defn- build-message-topology
-  [socket & handlers]
-  (let [base-stream
-        (->> socket
-             (ms/throttle 25 100)
-             (ms/transform
-              (comp
+(defn- build-message-pipeline
+  [socket pong-chan & handlers]
+  (let [handler-tuples (partition-all 2 handlers)]
+    (->> socket
+         (ms/throttle 25 100)
+         (ms/transform
+          (comp
 
-               ;; Convert Raw JSON to hashmap
-               (map #(json/read-str % :key-fn keyword))
+           ;; Convert Raw JSON to hashmap
+           (map #(json/read-str % :key-fn keyword))
 
-               ;; Filter out heartbeat messages
+           ;; Filter out heartbeat messages
 
-               ;; clj-ify types
-               (map #(update % :type (comp keyword inflections/dasherize)))
+           ;; clj-ify types
+           (map #(update % :type (comp keyword inflections/dasherize)))
 
-               ;; Log type to STDOUT
-               (map (fn [message]
-                      (clojure.pprint/pprint message)
-                      message)))))]
+           ;; Log type to STDOUT
+           (map (fn [message]
+                  (clojure.pprint/pprint message)
+                  message))
 
-    ;; Creates an individual stream for each message handler
-    (map (fn [[pred handler]]
-           (ms/transform
-            (comp
-             (filter pred)
-             (map handler))
-            base-stream)) (partition-all 2 handlers))))
+           (map (fn [{message-type :type :as message}]
+                  (when (= :pong message-type)
+                    (a/go (a/>! pong-chan message)))
+                  message))
+
+           ;; Format message to tuple of [message [interested-handlers...]]
+           (map (fn [message]
+                  [message (->> handler-tuples
+                                (filter (fn [[pred _]] (pred message)))
+                                (map second))]))
+
+           ;; Remove messages with no interested handlers
+           (remove (comp empty? second))
+
+           ;; Convert message to list of responses
+           (map (fn [[message handlers :as m]]
+                  (map #(% message) handlers))))))))
 
 (defn- post-message!
   [socket {:keys [channel text]}]
@@ -54,13 +65,16 @@
              :type "message"})))
 
 (defn- start-heartbeat
-  [socket connected]
+  [socket connected pong-chan]
   (while true
-    (let [result @(ms/put! socket
+    (let [message-id (get-message-id)
+          result @(ms/put! socket
                            (json/write-str
-                            {:id (get-message-id)
+                            {:id message-id
                              :type "ping"}))]
-      (when-not result
+      (when-not (let [[val _] (a/alts!! [pong-chan (a/timeout 5000)])]
+                  (= {:type :pong :reply_to message-id} val))
+        (prn "Ping response not received in time. Reconnecting...")
         (reset! connected false))
       (Thread/sleep 5000))))
 
@@ -80,18 +94,21 @@
 
     (while true
       (let [socket (connect-socket)
-            handler-streams (apply build-message-topology
-                                   socket
-                                   handlers)
+            pong-chan (a/chan 1)
+            handler-stream (apply build-message-pipeline
+                                  socket
+                                  pong-chan
+                                  handlers)
             connected (atom true)
-            heartbeat (future (start-heartbeat socket connected))]
+            heartbeat (future
+                        (Thread/sleep 3000)
+                        (start-heartbeat socket connected pong-chan))]
         (try
           ;; Publish messages output by handler streams
-          (try
-            (while @connected
-              (doseq [handler-stream handler-streams]
-                (if-let [message @(ms/take! handler-stream)]
-                  (post-message! socket message))))
+          (while @connected
+            (if-let [messages @(ms/take! handler-stream)]
+              (doseq [message messages]
+                (future (post-message! socket message)))))
 
-            (finally (future-cancel heartbeat)))
-          (finally (ms/close! socket)))))))
+          (finally (future-cancel heartbeat)
+                   (ms/close! socket)))))))
